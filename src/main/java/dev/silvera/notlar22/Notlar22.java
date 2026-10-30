@@ -18,7 +18,10 @@ public final class Notlar22 implements ModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private static final String KEY_ENABLED = "enabled";
+    private static final String KEY_SERVER_SINGLE_PRESS = "single_press_on_servers";
+
     private static volatile boolean enabled = true;
+    private static volatile boolean serverSinglePress = false;
 
     @Override
     public void onInitialize() {
@@ -28,6 +31,10 @@ public final class Notlar22 implements ModInitializer {
 
     public static boolean isEnabled() {
         return enabled;
+    }
+
+    public static boolean isServerSinglePress() {
+        return serverSinglePress;
     }
 
     public static boolean toggle() {
@@ -43,12 +50,14 @@ public final class Notlar22 implements ModInitializer {
     private static void load() {
         Path path = configPath();
         if (!Files.isRegularFile(path)) {
+            save();
             return;
         }
         Properties props = new Properties();
         try (InputStream in = Files.newInputStream(path)) {
             props.load(in);
             enabled = Boolean.parseBoolean(props.getProperty(KEY_ENABLED, "true"));
+            serverSinglePress = Boolean.parseBoolean(props.getProperty(KEY_SERVER_SINGLE_PRESS, "false"));
         } catch (IOException e) {
             LOGGER.warn("Config okunamadı: {}", e.getMessage());
         }
@@ -57,6 +66,7 @@ public final class Notlar22 implements ModInitializer {
     private static void save() {
         Properties props = new Properties();
         props.setProperty(KEY_ENABLED, Boolean.toString(enabled));
+        props.setProperty(KEY_SERVER_SINGLE_PRESS, Boolean.toString(serverSinglePress));
         try (OutputStream out = Files.newOutputStream(configPath())) {
             props.store(out, "Notlar22");
         } catch (IOException e) {
