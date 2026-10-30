@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "notlar22",
+  "version": "${version}",
+  "name": "Notlar22",
+  "description": "Fireworks through cobweb and oak planks, single-press elytra glide, toggle key with custom sounds.",
+  "authors": ["Kej"],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["dev.silvera.notlar22.Notlar22"],
+    "client": ["dev.silvera.notlar22.Notlar22Client"]
+  },
+  "mixins": ["notlar22.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.16.9",
+    "minecraft": "~1.21.4",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "package": "dev.silvera.notlar22.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "FireworkRocketItemMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
