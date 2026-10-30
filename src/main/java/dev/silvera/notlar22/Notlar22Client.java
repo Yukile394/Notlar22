@@ -74,7 +74,8 @@ public final class Notlar22Client implements ClientModInitializer {
             airTicks++;
         }
 
-        if (!Notlar22.isEnabled()) {
+        boolean singlePressAllowed = client.isInSingleplayer() || Notlar22.isServerSinglePress();
+        if (!Notlar22.isEnabled() || !singlePressAllowed) {
             resetGlideState();
             return;
         }
