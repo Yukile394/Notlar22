@@ -1,131 +1,76 @@
 package dev.silvera.notlar22;
 
-import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
-import org.lwjgl.glfw.GLFW;
+import net.fabricmc.api.ModInitializer;
+import net.fabricmc.loader.api.FabricLoader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public final class Notlar22Client implements ClientModInitializer {
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Properties;
 
-    private static final int PENDING_TICKS = 12;
-    private static final int MIN_AIR_TICKS = 2;
-    private static final int VERIFY_TICKS = 10;
-    private static final int MAX_ATTEMPTS = 3;
+public final class Notlar22 implements ModInitializer {
 
-    private static KeyBinding toggleKey;
+    public static final String MOD_ID = "notlar22";
+    public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    private boolean jumpWasDown;
-    private int pendingTicks;
-    private int airTicks;
-    private int attempts;
-    private int verifyTicks;
+    private static final String KEY_ENABLED = "enabled";
+    private static final String KEY_SERVER_SINGLE_PRESS = "single_press_on_servers";
+
+    private static volatile boolean enabled = true;
+    private static volatile boolean serverSinglePress = false;
 
     @Override
-    public void onInitializeClient() {
-        toggleKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.notlar22.toggle",
-                InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_K,
-                "category.notlar22"
-        ));
-        ClientTickEvents.END_CLIENT_TICK.register(this::onTick);
+    public void onInitialize() {
+        load();
+        LOGGER.info("Notlar22 yüklendi.");
     }
 
-    private void resetGlideState() {
-        pendingTicks = 0;
-        attempts = 0;
-        verifyTicks = 0;
+    public static boolean isEnabled() {
+        return enabled;
     }
 
-    private void onTick(MinecraftClient client) {
-        while (toggleKey.wasPressed()) {
-            boolean state = Notlar22.toggle();
-            ToggleSound.play(state);
-            resetGlideState();
-        }
+    public static boolean isServerSinglePress() {
+        return serverSinglePress;
+    }
 
-        ClientPlayerEntity player = client.player;
+    public static boolean toggle() {
+        enabled = !enabled;
+        save();
+        return enabled;
+    }
 
-        boolean pressed = false;
-        while (client.options.jumpKey.wasPressed()) {
-            pressed = true;
-        }
-        boolean jumpDown = client.options.jumpKey.isPressed();
-        if (jumpDown && !jumpWasDown) {
-            pressed = true;
-        }
-        jumpWasDown = jumpDown;
+    private static Path configPath() {
+        return FabricLoader.getInstance().getConfigDir().resolve(MOD_ID + ".properties");
+    }
 
-        if (player == null) {
-            airTicks = 0;
-            resetGlideState();
+    private static void load() {
+        Path path = configPath();
+        if (!Files.isRegularFile(path)) {
+            save();
             return;
         }
-
-        if (player.isOnGround()) {
-            airTicks = 0;
-        } else {
-            airTicks++;
-        }
-
-        boolean singlePressAllowed = client.isInSingleplayer() || Notlar22.isServerSinglePress();
-        if (!Notlar22.isEnabled() || !singlePressAllowed) {
-            resetGlideState();
-            return;
-        }
-
-        if (pressed) {
-            pendingTicks = PENDING_TICKS;
-            attempts = 0;
-            verifyTicks = 0;
-        }
-
-        if (player.isGliding()) {
-            if (verifyTicks > 0) {
-                verifyTicks--;
-            }
-            pendingTicks = 0;
-            return;
-        }
-
-        if (verifyTicks > 0) {
-            verifyTicks = 0;
-            if (attempts < MAX_ATTEMPTS) {
-                pendingTicks = PENDING_TICKS;
-            }
-        }
-
-        if (pendingTicks > 0) {
-            pendingTicks--;
-            if (airTicks >= MIN_AIR_TICKS && attempts < MAX_ATTEMPTS && tryGlide(player)) {
-                attempts++;
-                verifyTicks = VERIFY_TICKS;
-            }
+        Properties props = new Properties();
+        try (InputStream in = Files.newInputStream(path)) {
+            props.load(in);
+            enabled = Boolean.parseBoolean(props.getProperty(KEY_ENABLED, "true"));
+            serverSinglePress = Boolean.parseBoolean(props.getProperty(KEY_SERVER_SINGLE_PRESS, "false"));
+        } catch (IOException e) {
+            LOGGER.warn("Config okunamadı: {}", e.getMessage());
         }
     }
 
-    private static boolean tryGlide(ClientPlayerEntity player) {
-        if (player.isOnGround()
-                || player.hasVehicle()
-                || player.isTouchingWater()
-                || player.isInLava()
-                || player.isClimbing()
-                || player.isSpectator()
-                || player.getAbilities().flying
-                || player.hasStatusEffect(StatusEffects.LEVITATION)) {
-            return false;
+    private static void save() {
+        Properties props = new Properties();
+        props.setProperty(KEY_ENABLED, Boolean.toString(enabled));
+        props.setProperty(KEY_SERVER_SINGLE_PRESS, Boolean.toString(serverSinglePress));
+        try (OutputStream out = Files.newOutputStream(configPath())) {
+            props.store(out, "Notlar22");
+        } catch (IOException e) {
+            LOGGER.warn("Config yazılamadı: {}", e.getMessage());
         }
-        if (player.checkGliding()) {
-            player.networkHandler.sendPacket(
-                    new ClientCommandC2SPacket(player, ClientCommandC2SPacket.Mode.START_FALL_FLYING));
-            return true;
-        }
-        return false;
     }
 }
