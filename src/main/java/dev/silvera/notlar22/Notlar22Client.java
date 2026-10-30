@@ -13,12 +13,18 @@ import org.lwjgl.glfw.GLFW;
 
 public final class Notlar22Client implements ClientModInitializer {
 
-    private static final int PENDING_TICKS = 5;
+    private static final int PENDING_TICKS = 12;
+    private static final int MIN_AIR_TICKS = 2;
+    private static final int VERIFY_TICKS = 10;
+    private static final int MAX_ATTEMPTS = 3;
 
     private static KeyBinding toggleKey;
 
     private boolean jumpWasDown;
     private int pendingTicks;
+    private int airTicks;
+    private int attempts;
+    private int verifyTicks;
 
     @Override
     public void onInitializeClient() {
@@ -31,33 +37,74 @@ public final class Notlar22Client implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(this::onTick);
     }
 
+    private void resetGlideState() {
+        pendingTicks = 0;
+        attempts = 0;
+        verifyTicks = 0;
+    }
+
     private void onTick(MinecraftClient client) {
         while (toggleKey.wasPressed()) {
             boolean state = Notlar22.toggle();
             ToggleSound.play(state);
-            pendingTicks = 0;
+            resetGlideState();
         }
 
         ClientPlayerEntity player = client.player;
+
+        boolean pressed = false;
+        while (client.options.jumpKey.wasPressed()) {
+            pressed = true;
+        }
         boolean jumpDown = client.options.jumpKey.isPressed();
-        boolean jumpPressed = jumpDown && !jumpWasDown;
+        if (jumpDown && !jumpWasDown) {
+            pressed = true;
+        }
         jumpWasDown = jumpDown;
 
-        if (player == null || !Notlar22.isEnabled()) {
+        if (player == null) {
+            airTicks = 0;
+            resetGlideState();
+            return;
+        }
+
+        if (player.isOnGround()) {
+            airTicks = 0;
+        } else {
+            airTicks++;
+        }
+
+        if (!Notlar22.isEnabled()) {
+            resetGlideState();
+            return;
+        }
+
+        if (pressed) {
+            pendingTicks = PENDING_TICKS;
+            attempts = 0;
+            verifyTicks = 0;
+        }
+
+        if (player.isGliding()) {
+            if (verifyTicks > 0) {
+                verifyTicks--;
+            }
             pendingTicks = 0;
             return;
         }
 
-        if (jumpPressed) {
-            pendingTicks = PENDING_TICKS;
+        if (verifyTicks > 0) {
+            verifyTicks = 0;
+            if (attempts < MAX_ATTEMPTS) {
+                pendingTicks = PENDING_TICKS;
+            }
         }
 
         if (pendingTicks > 0) {
             pendingTicks--;
-            if (player.isGliding()) {
-                pendingTicks = 0;
-            } else if (tryGlide(player)) {
-                pendingTicks = 0;
+            if (airTicks >= MIN_AIR_TICKS && attempts < MAX_ATTEMPTS && tryGlide(player)) {
+                attempts++;
+                verifyTicks = VERIFY_TICKS;
             }
         }
     }
@@ -66,6 +113,9 @@ public final class Notlar22Client implements ClientModInitializer {
         if (player.isOnGround()
                 || player.hasVehicle()
                 || player.isTouchingWater()
+                || player.isInLava()
+                || player.isClimbing()
+                || player.isSpectator()
                 || player.getAbilities().flying
                 || player.hasStatusEffect(StatusEffects.LEVITATION)) {
             return false;
